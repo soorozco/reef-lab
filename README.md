@@ -65,8 +65,17 @@ cada vez que se abre la pantalla.
 
 ## Datos
 
-`localStorage` para los registros e IndexedDB para las fotos (con respaldo a
-`localStorage`). Son locales a este navegador: **exporta un respaldo** desde Ajustes.
+Los datos viven en **Supabase**, con acceso mediante cuenta de Google, así que se
+ven igual desde la computadora y desde el celular. Las fotos van a Supabase Storage
+en un bucket privado. Toda tabla lleva RLS contra `auth.uid()`: la clave `anon` del
+cliente es pública por diseño y sin sesión no da acceso a nada.
+
+Para dejarlo funcionando hay cinco pasos, tres de ellos en los paneles de Supabase
+y Google: ver **[SETUP.md](SETUP.md)**.
+
+Es una versión **solo nube**: sin internet la app no abre. Si en el navegador quedaron
+datos de la versión anterior (que guardaba en `localStorage`), la app los detecta al
+primer inicio de sesión y ofrece subirlos a tu cuenta.
 
 Las fotos de corales se muestran **en color**, apartándose del sistema de diseño
 —que pide `.grayscale` en toda fotografía— porque la coloración es justo el dato

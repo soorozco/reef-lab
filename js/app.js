@@ -20,14 +20,14 @@ function openModal(title, html, ok, cls=''){
 }
 function closeModal(){ $('#backdrop').classList.remove('on'); document.body.style.overflow=''; onOk=null; }
 
-/* ───────── respaldo ───────── */
+/* ───────── respaldo ─────────
+   Exporta los datos, no las imágenes: las fotos viven en Supabase Storage
+   y en el JSON solo van sus rutas. */
 async function exportData(){
-  const out=structuredClone(S); out._fotos={};
-  const ids=[];
-  S.corals.forEach(c=>{ if(c.photo) ids.push(c.photo); (c.log||[]).forEach(l=>{ if(l.photo) ids.push(l.photo); }); });
-  for(const id of ids){ const d=await Photos.get(id); if(d) out._fotos[id]=d; }
+  const out = structuredClone(S);
+  out._meta = {app:'reeflab', version:2, exportado:today(), fotos:'en Supabase Storage'};
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
   a.download=`reeflab-${today()}.json`; a.click();
   URL.revokeObjectURL(a.href);
   toast('Respaldo descargado');
@@ -37,14 +37,16 @@ async function importData(e){
   try{
     const d=JSON.parse(await f.text());
     if(!d.tests && !d.solutions && !d.corals) throw new Error('formato');
-    if(!confirm('Esto reemplazará los datos actuales. ¿Continuar?')) return;
-    const fotos=d._fotos||{}; delete d._fotos;
-    S=Object.assign(semilla(), d);
-    S.settings=Object.assign({}, DEFAULTS.settings, d.settings||{});
-    S.settings.objetivos=Object.assign({}, DEFAULTS.settings.objetivos, (d.settings||{}).objetivos||{});
-    if(!S.salts?.length) S.salts=semilla().salts;
-    for(const [id,data] of Object.entries(fotos)) await Photos.putWithId(id,data);
-    save(); renderAll(); toast('Respaldo importado');
+    if(!confirm('Esto reemplazará en la nube todos los datos de tu cuenta. ¿Continuar?')) return;
+    delete d._meta; delete d._fotos;
+    S = {
+      settings: Object.assign({}, DEFAULTS.settings, d.settings||{},
+                 {objetivos: Object.assign({}, DEFAULTS.settings.objetivos, (d.settings||{}).objetivos||{})}),
+      salts:     d.salts?.length ? d.salts : salesPorDefecto(),
+      solutions: d.solutions||[], tests: d.tests||[], doses: d.doses||[],
+      maint:     d.maint||[],     corals: d.corals||[],
+    };
+    save(); renderAll(); toast('Respaldo importado y sincronizado');
   }catch(err){ toast('Archivo no válido'); }
   e.target.value='';
 }
@@ -151,4 +153,5 @@ document.addEventListener('click', async e=>{
 $('#backdrop').addEventListener('click', e=>{ if(e.target.id==='backdrop') closeModal(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
-renderAll();
+/* La app no pinta nada hasta que hay sesión y datos cargados desde Supabase. */
+arrancar();
