@@ -9,8 +9,8 @@
    Rellena los dos valores desde  Project Settings → API.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const SUPABASE_URL      = 'PEGA_AQUI_TU_PROJECT_URL';   // https://xxxxx.supabase.co
-const SUPABASE_ANON_KEY = 'PEGA_AQUI_TU_ANON_KEY';      // eyJ...
+const SUPABASE_URL      = 'https://otcmolvbrcplgysqeqtc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90Y21vbHZicmNwbGd5c3FlcXRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MTY4ODYsImV4cCI6MjEwMTI5Mjg4Nn0.WJYectPuMxQLAo1DCBI1POagW8Nix7LegJVVr9NrAkk';
 
 const SUPABASE_LISTO =
   !SUPABASE_URL.startsWith('PEGA_AQUI') &&
