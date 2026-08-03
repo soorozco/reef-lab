@@ -98,33 +98,10 @@ const DEFAULTS = {
   tests:[], salts:[], solutions:[], doses:[], maint:[], corals:[],
 };
 
-let S = cargar();
+/* El estado vive en memoria y lo puebla db.js desde Supabase al iniciar sesión.
+   save() también está en db.js: agenda la sincronización de lo que cambió. */
+let S = null;
 
-function cargar(){
-  try{
-    const raw = localStorage.getItem('reeflab');
-    if(!raw) return semilla();
-    const d = JSON.parse(raw);
-    const s = Object.assign(structuredClone(DEFAULTS), d);
-    s.settings = Object.assign({}, DEFAULTS.settings, d.settings||{});
-    s.settings.objetivos = Object.assign({}, DEFAULTS.settings.objetivos, (d.settings||{}).objetivos||{});
-    return s;
-  }catch(e){ console.warn('Error leyendo datos', e); return semilla(); }
-}
-/* Arranque con el catálogo de sales precargado (§4) */
-function semilla(){
-  const s = structuredClone(DEFAULTS);
-  s.salts = Object.keys(COMPUESTOS).map(c=>({
-    id:'sal_'+c, compuesto:c,
-    estado: COMPUESTOS[c].fijo ? 'confirmado_anhidro' : 'desconocido',
-    grado:'desconocido', coa:false, proveedor:'', fechaCompra:'', enUso:false,
-  }));
-  return s;
-}
-function save(){
-  try{ localStorage.setItem('reeflab', JSON.stringify(S)); }
-  catch(e){ toast('Sin espacio: exporta un respaldo y borra fotos viejas'); }
-}
 const V = ()=> +S.settings.volumenNeto || 1;
 function tgt(k){
   const t = S.settings.targets[k];
@@ -148,57 +125,7 @@ function status(k,v){
 }
 const isOff = st=> st==='bad' || st==='warn';
 
-/* ═══════════════ fotos: IndexedDB con respaldo a localStorage ═══════════════ */
-const Photos = (()=>{
-  let dbP=null; const mem=new Map();
-  function open(){
-    if(dbP) return dbP;
-    dbP = new Promise(res=>{
-      let req;
-      try{ req = indexedDB.open('reeflab-photos',1); }catch(e){ return res(null); }
-      req.onupgradeneeded = ()=>{ req.result.createObjectStore('p'); };
-      req.onsuccess = ()=>res(req.result);
-      req.onerror   = ()=>res(null);
-    });
-    return dbP;
-  }
-  const lsKey = id=>'reeflab-ph-'+id;
-  return {
-    async put(data){
-      const id=uid(); mem.set(id,data);
-      const db=await open();
-      if(db){ try{
-        await new Promise((res,rej)=>{ const t=db.transaction('p','readwrite'); t.objectStore('p').put(data,id); t.oncomplete=res; t.onerror=()=>rej(t.error); });
-        return id;
-      }catch(e){} }
-      try{ localStorage.setItem(lsKey(id), data); }catch(e){ toast('Sin espacio para la foto'); }
-      return id;
-    },
-    async get(id){
-      if(!id) return null;
-      if(mem.has(id)) return mem.get(id);
-      const ls=localStorage.getItem(lsKey(id)); if(ls){ mem.set(id,ls); return ls; }
-      const db=await open(); if(!db) return null;
-      try{
-        const v=await new Promise((res,rej)=>{ const t=db.transaction('p','readonly'); const r=t.objectStore('p').get(id); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
-        if(v) mem.set(id,v);
-        return v||null;
-      }catch(e){ return null; }
-    },
-    async del(id){
-      if(!id) return;
-      mem.delete(id); localStorage.removeItem(lsKey(id));
-      const db=await open(); if(!db) return;
-      try{ const t=db.transaction('p','readwrite'); t.objectStore('p').delete(id); }catch(e){}
-    },
-    async putWithId(id,data){
-      mem.set(id,data);
-      const db=await open();
-      if(db){ try{ const t=db.transaction('p','readwrite'); t.objectStore('p').put(data,id); return; }catch(e){} }
-      try{ localStorage.setItem(lsKey(id), data); }catch(e){}
-    },
-  };
-})();
+/* Las fotos van a Supabase Storage; el objeto Photos está en db.js. */
 
 function fileToDataURL(file, maxDim=900, q=0.72){
   return new Promise((res,rej)=>{

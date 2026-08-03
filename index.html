@@ -228,6 +228,20 @@ details.det-kits summary:hover{color:var(--ink)}
 .x{background:none;border:0;font-size:18px;font-weight:800;color:var(--n700);padding:2px 8px}
 .x:hover{color:var(--accent)}
 
+/* puerta de acceso */
+.gate{position:fixed;inset:0;z-index:300;display:none;place-items:center;background:var(--bg);padding:24px}
+.gate.on{display:grid}
+.gate-box{max-width:460px;width:100%;border:2px solid var(--divider);padding:36px 32px}
+.gate .brand{margin-bottom:28px}
+.gate-t{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.1;text-transform:uppercase}
+.gate-d{font-size:14px;color:var(--n700);margin-top:12px;text-wrap:pretty}
+.gate-btn{margin-top:24px}
+.sync{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--n500);white-space:nowrap}
+.sync.guardando{color:var(--n700)}
+.sync.guardado{color:var(--n500)}
+.sync.error{color:var(--acc700)}
+#usuario{display:flex;align-items:baseline;gap:10px;white-space:nowrap}
+
 .empty{border:2px dashed var(--divider);padding:36px 24px;color:var(--n600);font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 .view{display:none}
 .view.on{display:block}
@@ -286,6 +300,8 @@ details.det-kits summary:hover{color:var(--ink)}
     <button data-tab="ajustes">Ajustes</button>
   </nav>
   <div class="spacer"></div>
+  <span class="sync" id="syncEstado"></span>
+  <span id="usuario"></span>
   <div id="navAction"></div>
 </header>
 
@@ -302,10 +318,14 @@ details.det-kits summary:hover{color:var(--ink)}
 
 <div class="backdrop" id="backdrop"><div class="dialog" id="modal"></div></div>
 <div class="toast" id="toast"></div>
+<div class="gate" id="gate"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
 <script src="js/core.js"></script>
 <script src="js/quimica.js"></script>
 <script src="js/graficas.js"></script>
+<script src="js/db.js"></script>
 <script src="js/v-plan.js"></script>
 <script src="js/v-parametros.js"></script>
 <script src="js/v-soluciones.js"></script>

@@ -344,9 +344,8 @@ function renderCalc(){
 
 /* ───────────────────── AJUSTES ───────────────────── */
 function renderAjustes(){
-  const bytes=new Blob([JSON.stringify(S)]).size
-    + Object.keys(localStorage).filter(k=>k.startsWith('reeflab-ph-')).reduce((a,k)=>a+localStorage.getItem(k).length,0);
-  const pct=Math.min(100,Math.round(bytes/5e6*100));
+  const bytes=new Blob([JSON.stringify(S)]).size;
+  const nFotos=S.corals.reduce((a,c)=>a+(c.photo?1:0)+(c.log||[]).filter(l=>l.photo).length,0);
   const vb=+S.settings.volumenBruto||0, vn=+S.settings.volumenNeto||0;
   const ratio = vb? vn/vb*100 : 0;
   const tests=autotests(), fallan=tests.filter(t=>!t.ok).length;
@@ -421,7 +420,10 @@ function renderAjustes(){
 
     <div class="sec last">
       <div class="h-sub">Datos</div>
-      <div style="font-size:13px;color:var(--n700);margin-top:10px">Todo se guarda en este dispositivo. Exporta un respaldo antes de cambiar de navegador.</div>
+      <div style="font-size:13px;color:var(--n700);margin-top:10px">
+        Todo se guarda en tu cuenta de Supabase y se ve igual desde cualquier dispositivo.
+        El respaldo en JSON es por si quieres una copia fuera de la nube; no incluye las imágenes,
+        que viven en Storage.</div>
       <div style="display:flex;gap:8px;margin-top:18px;flex-wrap:wrap">
         <button class="btn" data-export>EXPORTAR JSON</button>
         <button class="btn" id="impBtn">IMPORTAR</button>
@@ -429,9 +431,8 @@ function renderAjustes(){
         <input type="file" id="impFile" accept="application/json" style="display:none">
       </div>
       <div style="margin-top:24px;max-width:520px">
-        <div class="row kicker"><span>Almacenamiento</span><span class="spacer"></span>
-          <span class="num">${(bytes/1e6).toFixed(2)} MB de 5 MB · ${pct} %</span></div>
-        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div class="row kicker"><span>En tu cuenta</span><span class="spacer"></span>
+          <span class="num">${(bytes/1e3).toFixed(0)} KB de datos · ${nFotos} ${plural(nFotos,'foto','fotos')}</span></div>
         <div style="font-size:12.5px;color:var(--n600);margin-top:8px">${S.tests.length} mediciones · ${S.solutions.length} soluciones · ${S.doses.length} dosis · ${S.maint.length} mantenimientos · ${S.corals.length} corales</div>
       </div>
     </div>`;
@@ -466,11 +467,15 @@ function renderAjustes(){
   $('#resetT').onclick=()=>{S.settings.targets={}; save(); renderAll(); toast('Rangos restaurados');};
   $('#impBtn').onclick=()=>$('#impFile').click();
   $('#impFile').onchange=importData;
-  $('#wipeBtn').onclick=()=>{
-    if(!confirm('¿Borrar TODOS los datos? Esto no se puede deshacer.')) return;
-    localStorage.removeItem('reeflab');
-    Object.keys(localStorage).filter(k=>k.startsWith('reeflab-ph-')).forEach(k=>localStorage.removeItem(k));
-    try{ indexedDB.deleteDatabase('reeflab-photos'); }catch(e){}
-    S=semilla(); save(); renderAll(); toast('Datos borrados');
+  $('#wipeBtn').onclick=async ()=>{
+    if(!confirm('¿Borrar TODOS los datos de tu cuenta en la nube? Esto no se puede deshacer.')) return;
+    if(!confirm('Última confirmación: se borran mediciones, soluciones, dosis, mantenimientos y corales.')) return;
+    const fotos=[];
+    S.corals.forEach(c=>{ if(c.photo) fotos.push(c.photo); (c.log||[]).forEach(l=>l.photo&&fotos.push(l.photo)); });
+    S = { settings: structuredClone(DEFAULTS.settings), salts: salesPorDefecto(),
+          solutions:[], tests:[], doses:[], maint:[], corals:[] };
+    save();
+    for(const f of fotos) await Photos.del(f);
+    renderAll(); toast('Datos borrados');
   };
 }
