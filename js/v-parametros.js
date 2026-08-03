@@ -117,6 +117,38 @@ function statsBox(pts,k){
       <div class="t">${esc(p.err)}.</div></div>`:''}`;
 }
 
+/* ═══════════════ kits ═══════════════
+   Desplegable en vez de texto libre: escribir el nombre a mano es una
+   fuente de erratas y de que el mismo kit acabe con tres grafías. La lista
+   arranca con los de casa y va sumando los que el usuario añada con «Otro». */
+const KITS_BASE = ['Salifert','Hanna'];
+function kitsConocidos(k){
+  const vistos = new Set(KITS_BASE);
+  for(const t of S.tests){ const v=t.kits?.[k]; if(v) vistos.add(v); }
+  return [...vistos].sort((a,b)=>a.localeCompare(b,'es'));
+}
+/* al capturar, propone el kit de la última medición que lo registró */
+function kitPorDefecto(k, t){
+  if(t) return t.kits?.[k] || '';
+  for(const x of sortedTests()){ const v=x.kits?.[k]; if(v) return v; }
+  return '';
+}
+function campoKit(k, t){
+  const actual = kitPorDefecto(k, t);
+  const lista  = kitsConocidos(k);
+  return `<div class="field">
+    <label>${P[k].n}</label>
+    <select name="kit_${k}" data-kit="${k}">
+      <option value="">— sin especificar —</option>
+      ${lista.map(n=>`<option value="${esc(n)}" ${actual===n?'selected':''}>${esc(n)}</option>`).join('')}
+      <option value="__otro">Otro…</option>
+    </select>
+    <input type="text" name="kitotro_${k}" class="kit-otro" placeholder="Nombre del kit"
+           style="margin-top:6px;display:none">
+    <div class="tiny dim" style="margin-top:4px">${esc(P[k].err||'')}</div>
+  </div>`;
+}
+
 /* ═══════════════ formulario de medición (§7.1) ═══════════════ */
 function testForm(id){
   const t = id ? S.tests.find(x=>x.id===id) : null;
@@ -139,11 +171,10 @@ function testForm(id){
     </div>
     <div class="meta" id="salHint" style="margin:-6px 0 16px;color:var(--n700)"></div>
 
-    <details class="det-kits"><summary>Kits usados y margen de error</summary>
-      <div class="f3" style="margin-top:14px">
-        ${['kh','ca','mg','no3','po4'].map(k=>`<div class="field"><label>${P[k].n}</label>
-          <input type="text" name="kit_${k}" value="${esc(t?.kits?.[k]||'')}" placeholder="Salifert, Hanna…">
-          <div class="tiny dim" style="margin-top:4px">${esc(P[k].err||'')}</div></div>`).join('')}
+    <details class="det-kits" ${t?'open':''}><summary>Kits usados y margen de error</summary>
+      <div class="tiny dim" style="margin:10px 0 4px">Vienen preseleccionados los de tu última medición; cámbialos solo si mediste con otro.</div>
+      <div class="f3" style="margin-top:10px">
+        ${['kh','ca','mg','no3','po4'].map(k=>campoKit(k,t)).join('')}
       </div>
     </details>
 
@@ -165,7 +196,11 @@ function testForm(id){
       v.sal = f.get('salU')==='sg' ? +sgAPpt(val).toFixed(2) : val;
       S.settings.salUnidad = f.get('salU');
     }
-    for(const k of ['kh','ca','mg','no3','po4']){ const x=f.get('kit_'+k); if(x) kits[k]=x; }
+    for(const k of ['kh','ca','mg','no3','po4']){
+      let x = f.get('kit_'+k);
+      if(x==='__otro') x = (f.get('kitotro_'+k)||'').trim();
+      if(x) kits[k]=x;
+    }
     if(!Object.keys(v).length) return toast('Captura al menos un parámetro');
     if(t) Object.assign(t,{date:f.get('date'), note:f.get('note'), v, kits});
     else S.tests.push({id:uid(), date:f.get('date'), note:f.get('note'), v, kits});
@@ -186,4 +221,14 @@ function testForm(id){
   $('#fTest').addEventListener('input',upd);
   $('#fTest').addEventListener('change',upd);
   upd();
+
+  /* «Otro…» abre el campo de texto y le da el foco */
+  for(const sel of $$('#fTest select[data-kit]')){
+    sel.addEventListener('change', ()=>{
+      const otro = sel.parentElement.querySelector('.kit-otro');
+      const abierto = sel.value==='__otro';
+      otro.style.display = abierto ? '' : 'none';
+      if(abierto) otro.focus(); else otro.value='';
+    });
+  }
 }
