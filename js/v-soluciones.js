@@ -121,7 +121,9 @@ const PRESETS = {
     nota:'Polvo Red Sea disuelto. Dato del fabricante: 1 ml por cada 100 L sube 0.034 dKH.' },
   rs_ca:{ nombre:'Red Sea · calcio', tipo:'ca', refDelta:2, refMl:1, refLitros:100, volumenMl:1000,
     nota:'Polvo Red Sea disuelto. Dato del fabricante: 1 ml por cada 100 L sube 2 ppm de calcio.' },
-  brs_mg:{ nombre:'BRS Liquid Magnesium Mix', tipo:'mg', refDelta:null, refMl:null, refLitros:null, volumenMl:3785,
+  /* Potencia leída del propio Reef Calculator de BRS y comprobada lineal en
+     cuatro combinaciones de volumen y salto: 100 ppm con 213.04 ml en 100 L. */
+  brs_mg:{ nombre:'BRS Liquid Magnesium Mix', tipo:'mg', refDelta:100, refMl:213.04, refLitros:100, volumenMl:3785,
     receta:'brs_mg',
     nota:'Premezcla BRS: 7¼ tazas de cloruro de magnesio y ½ taza de sulfato, en 1 galón. Baja en sulfato a propósito, pensada para ajustes grandes.' },
 };
@@ -218,7 +220,7 @@ function solucionForm(id){
     $('#camposPotencia').style.display= m==='potencia' ? '' : 'none';
 
     $('#ayudaPot').innerHTML = f.preset?.value==='brs_mg'
-      ? `BRS no publica la potencia: sácala de su <b>Reef Calculator</b>. Pon tu magnesio actual, el deseado y tu volumen, elige <i>BRS Liquid Magnesium Mix</i> y te dará unos ml. Captura aquí <b>la diferencia de ppm</b>, <b>esos ml</b> y <b>tu volumen</b>.`
+      ? `Sacado del <b>Reef Calculator</b> de BRS: para subir 100 ppm en 100 L pide 213.04 ml. Se comprobó que la relación es lineal, así que sirve para cualquier volumen y cualquier salto.`
       : `Es el dato que trae el fabricante, del estilo «1 ml por cada 100 L sube 0.034 dKH». También sirve un resultado de la calculadora de la marca: la diferencia que buscabas, los ml que te dio y el volumen que pusiste.`;
 
     const prev=$('#solPrev');
