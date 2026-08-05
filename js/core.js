@@ -11,6 +11,16 @@ const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':
 const today = ()=>{ const d=new Date(); return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10); };
 const dOf = s=> new Date(s+'T12:00:00');
 const fmt = (v,d=2)=> v==null||v===''||isNaN(v) ? '—' : (+v).toFixed(d);
+/* Decimales según la magnitud: «100 ppm» y no «100.000 ppm», que en español
+   se lee como cien mil. Recorta también los ceros sobrantes. */
+function fmtAuto(v){
+  if(v==null||v===''||isNaN(v)) return '—';
+  const n=+v, a=Math.abs(n);
+  const d = a>=10 ? 0 : a>=1 ? 2 : a>=0.1 ? 3 : 4;
+  const s = n.toFixed(d);
+  /* recortar ceros solo si hay parte decimal, o «100» acabaría en «1» */
+  return d>0 ? s.replace(/0+$/,'').replace(/\.$/,'') : s;
+}
 const fmtDate = s=> s ? dOf(s).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
 const fmtShort= s=> s ? dOf(s).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '—';
 const fmtDM   = s=> s ? dOf(s).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit'}) : '—';

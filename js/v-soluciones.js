@@ -13,7 +13,7 @@ function renderSoluciones(){
     const pct = sol.volumenMl ? Math.max(0,Math.min(100,(+sol.restanteMl||0)/sol.volumenMl*100)) : 0;
     const alerta = a.dias!=null && a.dias<14;
     const subtitulo = esPot
-      ? `${fmt(sol.refDelta,3)} ${sol.tipo==='alk'?'dKH':'ppm'} por ${fmt(sol.refMl,1)} ml en ${fmt(sol.refLitros,0)} L`
+      ? `${fmtAuto(sol.refDelta)} ${sol.tipo==='alk'?'dKH':'ppm'} por ${fmtAuto(sol.refMl)} ml en ${fmt(sol.refLitros,0)} L`
       : `${sal?esc(compuestoDe(sal).n):'sal borrada'}${forma?` · ${forma.f}`:''}${sal&&hidratoIncierto(sal)?' · <span class="bad">sin confirmar</span>':''}`;
     return `<div class="solc">
       <div class="row" style="gap:10px">
@@ -52,7 +52,9 @@ function renderSoluciones(){
   /* completa la fila para que no asome el fondo de la retícula */
   const relleno = sols.length ? '<div class="solc fill"></div>'.repeat((3 - sols.length % 3) % 3) : '';
 
-  const filasSal = S.salts.map(s=>{
+  const mias  = S.salts.filter(seUsa);
+  const otras = S.salts.filter(s=>!seUsa(s));
+  const filaSal = s=>{
     const c=compuestoDe(s), f=formaDe(s);
     const incierta=hidratoIncierto(s), riesgo = s.grado==='tecnico' && !s.coa;
     return `<tr>
@@ -62,12 +64,15 @@ function renderSoluciones(){
       <td>${c.tipo==='alk'?`${fmt(f.ap,3)} meq/g`:`${fmt(f.ap,1)} mg/g · ${fmt(f.pct,2)} %`}</td>
       <td class="${riesgo?'oo':''}">${GRADOS[s.grado]}${s.coa?' · CoA':''}</td>
       <td>${esc(s.proveedor||'—')}</td>
-      <td><button class="lnk" data-saledit="${s.id}">Ed.</button></td>
+      <td><button class="lnk" data-saledit="${s.id}">${seUsa(s)?'Ed.':'La tengo'}</button></td>
     </tr>`;
-  }).join('');
+  };
+  const tabla = arr => `<div class="tbl-box"><table style="min-width:820px">
+      <thead><tr><th>Sal</th><th>Forma en uso</th><th>Hidrato</th><th>Aporte por gramo</th><th>Grado</th><th>Proveedor</th><th></th></tr></thead>
+      <tbody>${arr.map(filaSal).join('')}</tbody></table></div>`;
 
-  const inciertas = S.salts.filter(s=>hidratoIncierto(s));
-  const sinCoa = S.salts.filter(s=>s.grado==='tecnico'&&!s.coa);
+  const inciertas = mias.filter(s=>hidratoIncierto(s));
+  const sinCoa = mias.filter(s=>s.grado==='tecnico'&&!s.coa);
 
   $('#v-soluciones').innerHTML = `
     <div class="sec">
@@ -80,8 +85,8 @@ function renderSoluciones(){
            Sin soluciones. Registra tu Parte A y tu Parte B para que el plan te dé mililitros en vez de dKH.</div></div>`}
 
     <div class="sec" style="padding-top:36px">
-      <div class="row"><div class="h-sec">Sales</div><div class="spacer"></div>
-        <div class="meta">el aporte por gramo cambia con el hidrato</div></div>
+      <div class="row"><div class="h-sec">Sales a granel</div><div class="spacer"></div>
+        <div class="meta">${mias.length?`${mias.length} en tu estante · el aporte por gramo cambia con el hidrato`:'no necesitas ninguna si dosificas con productos ya preparados'}</div></div>
     </div>
 
     ${inciertas.length?`<div class="mx note acc" style="margin-top:20px">
@@ -102,13 +107,33 @@ function renderSoluciones(){
         Pide el certificado de análisis o cámbiate a grado alimenticio/USP.</div>
     </div>`:''}
 
-    <div class="mx tbl-box" style="margin-top:20px"><table style="min-width:820px">
-      <thead><tr><th>Sal</th><th>Forma en uso</th><th>Hidrato</th><th>Aporte por gramo</th><th>Grado</th><th>Proveedor</th><th></th></tr></thead>
-      <tbody>${filasSal}</tbody></table></div>
+    <div class="mx" style="margin-top:20px">
+      ${mias.length
+        ? tabla(mias)
+        : `<div class="empty">No tienes sales a granel marcadas</div>
+           <div class="note" style="margin-top:16px"><div class="kicker">Y está bien</div>
+             <div class="t">Si dosificas con productos ya preparados —Red Sea, BRS y similares— no necesitas comprar sales sueltas:
+               la potencia te la da el fabricante y la registras arriba, en <b>Mis soluciones</b>.
+               Este catálogo solo hace falta para preparar tus propias soluciones a granel o para una corrección en seco.</div></div>`}
+    </div>
 
-    <div class="sec last" style="padding-top:24px">
-      <div class="note"><div class="kicker">Bidones grandes</div>
-        <div class="t">Las soluciones son estables indefinidamente si se mantienen tapadas, así que conviene preparar bidones de 5 L en lugar de botellas chicas: menos trabajo y menos oportunidad de equivocarse en la receta.</div></div>
+    <div class="sec">
+      <details ${mias.length?'':'open'}>
+        <summary class="kicker" style="cursor:pointer">Catálogo de referencia · ${otras.length} ${plural(otras.length,'sal','sales')} que no tienes</summary>
+        <div style="margin-top:16px">
+          <div class="note" style="margin-bottom:16px"><div class="t">
+            Estas son las constantes químicas que usa la app para las correcciones en seco.
+            Si compras alguna, dale a <b>La tengo</b> y pasará a tu estante: solo entonces la app te pedirá confirmar el hidrato y te avisará del grado.</div></div>
+          ${tabla(otras)}
+        </div>
+      </details>
+    </div>
+
+    <div class="sec last" style="padding-top:8px">
+      <div class="note"><div class="kicker">${mias.length?'Bidones grandes':'Guardado'}</div>
+        <div class="t">${mias.length
+          ? 'Las soluciones son estables indefinidamente si se mantienen tapadas, así que conviene preparar bidones de 5 L en lugar de botellas chicas: menos trabajo y menos oportunidad de equivocarse en la receta.'
+          : 'Tanto las soluciones caseras como las comerciales son estables indefinidamente mientras estén tapadas. Lo que sí conviene es anotar la fecha en el envase para saber cuánto lleva abierto.'}</div></div>
     </div>`;
 }
 
@@ -148,10 +173,11 @@ function solucionForm(id){
 
     <div id="camposReceta">
       <div class="f2">
-        <div class="field"><label>Sal</label><select name="salt">${S.salts.map(s=>{
-          const c=compuestoDe(s);
-          return `<option value="${s.id}" ${sol?.saltId===s.id?'selected':''}>${c.n} · ${TIPO_N[c.tipo]}</option>`;
-        }).join('')}</select></div>
+        <div class="field"><label>Sal</label><select name="salt">${
+          [...S.salts].sort((a,b)=> (seUsa(b)?1:0)-(seUsa(a)?1:0)).map(s=>{
+            const c=compuestoDe(s);
+            return `<option value="${s.id}" ${sol?.saltId===s.id?'selected':''}>${c.n} · ${TIPO_N[c.tipo]}${seUsa(s)?'':' — no la tienes'}</option>`;
+          }).join('')}</select></div>
         <div class="field"><label>Gramos de sal</label><input type="number" step="0.1" name="gramos" value="${sol?.gramos??''}"></div>
       </div>
       <label class="check"><input type="checkbox" name="horneado" ${sol?.horneado?'checked':''}>
@@ -367,7 +393,7 @@ function prepararComercial(sol){
 
     <div class="note" style="margin-top:8px">
       <div class="kicker">Lo que rinde en tu acuario</div>
-      <div class="t">${e?`De fábrica: <b>${fmt(sol.refDelta,3)} ${e.unidad}</b> por cada ${fmt(sol.refMl,1)} ml en ${fmt(sol.refLitros,0)} L.
+      <div class="t">${e?`De fábrica: <b>${fmtAuto(sol.refDelta)} ${e.unidad}</b> por cada ${fmtAuto(sol.refMl)} ml en ${fmt(sol.refLitros,0)} L.
         En tus <b>${V()} L netos</b> eso son <b>${fmt(e.delta, e.unidad==='dKH'?4:3)} ${e.unidad} por ml</b>.
         Para subir ${lim?`el tope diario de ${lim.rec} ${lim.u}`:'una unidad'} necesitas
         <b>${lim?fmt(mlPara(sol,lim.rec),0):fmt(mlPara(sol,1),0)} ml</b>.
@@ -390,6 +416,11 @@ function salForm(id){
   const c=compuestoDe(sal);
   const body=`<form id="fSal">
     <div class="note tight" style="margin-bottom:18px"><div class="t"><b>${c.n}</b> — ${Object.values(c.formas).map(f=>`${f.f} (${c.tipo==='alk'?fmt(f.ap,3)+' meq/g':fmt(f.ap,1)+' mg/g'})`).join(' · ')}</div></div>
+
+    <label class="check" style="margin-bottom:18px"><input type="checkbox" name="tengo" ${sal.tengo?'checked':''}>
+      <span><b>La tengo en el estante.</b> Márcala solo si compraste esta sal a granel.
+      Si dosificas con un producto ya preparado, déjala sin marcar y la app dejará de pedirte datos sobre ella.</span></label>
+
     ${c.fijo?'':`<div class="field"><label>Estado del hidrato</label><select name="estado">
       ${Object.entries(ESTADO_HID).map(([k,n])=>`<option value="${k}" ${sal.estado===k?'selected':''}>${n}</option>`).join('')}</select>
       <div class="tiny dim" style="margin-top:6px">Sin confirmar, la app calcula con la forma anhidra para que te quedes corto en vez de pasarte.</div></div>`}
@@ -406,13 +437,18 @@ function salForm(id){
   </form>`;
   openModal(c.n, body, ()=>{
     const f=new FormData($('#fSal'));
+    sal.tengo=!!f.get('tengo');
     if(!c.fijo) sal.estado=f.get('estado');
     sal.grado=f.get('grado'); sal.coa=!!f.get('coa');
     sal.proveedor=f.get('proveedor'); sal.fechaCompra=f.get('fechaCompra');
-    save(); closeModal(); renderAll(); toast('Sal actualizada');
+    save(); closeModal(); renderAll(); toast(sal.tengo?'Añadida a tu estante':'Sal actualizada');
   });
   const upd=()=>{
     const f=$('#fSal'), av=$('#salAviso'); let h='';
+    if(!f.tengo.checked){
+      $('#salAviso').innerHTML=`<div class="note"><div class="t dim">Como no la tienes marcada, la app no te va a pedir confirmar el hidrato ni te avisará del grado. Solo la usa como constante de referencia para las correcciones en seco.</div></div>`;
+      return;
+    }
     if(!c.fijo && f.estado.value==='desconocido'){
       h+=`<div class="note acc"><div class="kicker acc">Cómo distinguirlas</div><div class="t">
         El <b>anhidro</b> es polvo o perlitas muy finas, extremadamente higroscópico —se apelmaza o se humedece solo si dejas la bolsa abierta— y se calienta muchísimo al disolverse.
@@ -427,5 +463,7 @@ function salForm(id){
     }
     av.innerHTML=h;
   };
-  $('#fSal').addEventListener('change',upd); upd();
+  $('#fSal').addEventListener('change',upd);
+  $('#fSal').addEventListener('input',upd);
+  upd();
 }

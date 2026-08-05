@@ -24,9 +24,11 @@ const MAP = {
   salts: {
     tabla:'salts', col:'salts',
     aFila: s => ({id:s.id, compuesto:s.compuesto, estado:s.estado, grado:s.grado,
-                  coa:!!s.coa, proveedor:s.proveedor||'', fecha_compra:s.fechaCompra||null}),
+                  coa:!!s.coa, proveedor:s.proveedor||'', fecha_compra:s.fechaCompra||null,
+                  tengo:!!s.tengo}),
     aApp : r => ({id:r.id, compuesto:r.compuesto, estado:r.estado, grado:r.grado,
-                  coa:!!r.coa, proveedor:r.proveedor||'', fechaCompra:r.fecha_compra||''}),
+                  coa:!!r.coa, proveedor:r.proveedor||'', fechaCompra:r.fecha_compra||'',
+                  tengo:!!r.tengo}),
   },
   solutions: {
     tabla:'solutions', col:'solutions',
@@ -179,7 +181,7 @@ function salesPorDefecto(){
   return Object.keys(COMPUESTOS).map(c=>({
     id:'sal_'+c, compuesto:c,
     estado: COMPUESTOS[c].fijo ? 'confirmado_anhidro' : 'desconocido',
-    grado:'desconocido', coa:false, proveedor:'', fechaCompra:'',
+    grado:'desconocido', coa:false, proveedor:'', fechaCompra:'', tengo:false,
   }));
 }
 

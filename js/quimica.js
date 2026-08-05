@@ -341,10 +341,14 @@ function avisos(){
   if(!av.length) push('ok','Todo en orden','Los parámetros están en rango y no hay nada pendiente.');
   return av;
 }
+/* Solo interesa avisar de hidrato o grado si la sal está de verdad en el
+   estante o hay una solución hecha con ella. Antes se daba por hecho que
+   todo el mundo compra a granel, y eso llenaba el panel de avisos sobre
+   sales que el usuario nunca compró. */
 function seUsa(sal){
-  return S.solutions.some(s=>s.saltId===sal.id) || sal.enUso ||
-         ['cacl2','mgcl2','mgso4','nahco3'].includes(sal.compuesto);
+  return !!sal.tengo || S.solutions.some(s=>s.modo!=='potencia' && s.saltId===sal.id);
 }
+const salesQueTengo = ()=> S.salts.filter(seUsa);
 function desacoplamiento(){
   const ts = sortedTests().filter(t=>t.v.ca!=null&&t.v.ca!==''&&t.v.kh!=null&&t.v.kh!=='').slice(0,4);
   if(ts.length<3) return null;

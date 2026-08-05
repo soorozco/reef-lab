@@ -291,7 +291,16 @@ function renderCalc(){
         <div class="sub">de ${f.f} para subir <b>${fmt(d,p.dec)} ${p.u}</b> en ${vol} L.${hidratoIncierto(sal)?' <b class="bad">Hidrato sin confirmar: va calculado como anhidro.</b>':''}</div>`;
     }
     S.settings.volumenNeto=vOrig;
-    out.innerHTML=`<div class="out">${cuerpo}
+    /* si la sal no está en el estante, decirlo antes de dar gramos que no puede pesar */
+    const necesita = k==='mg' ? ['mgcl2','mgso4'] : k==='ca' ? ['cacl2'] : ['nahco3'];
+    const faltan = necesita.map(c=>S.salts.find(x=>x.compuesto===c)).filter(s=>s && !seUsa(s));
+    const solAlt = solucionDe(k);
+    const avisoFalta = faltan.length ? `<div class="note acc" style="margin-top:16px">
+      <div class="kicker acc">No tienes ${plural(faltan.length,'esta sal','estas sales')} a granel</div>
+      <div class="t">Estos gramos salen de ${faltan.map(s=>compuestoDe(s).n).join(' y ')}, que no está${faltan.length>1?'n':''} marcada${faltan.length>1?'s':''} en tu estante.
+        ${solAlt?`Tienes <b>${esc(solAlt.nombre)}</b>: para el mismo salto necesitas <b>${fmt(mlPara(solAlt, d),0)} ml</b> de esa solución, y eso sí lo puedes dosificar hoy.`
+                :'Si vas a corregir con un producto ya preparado, regístralo en Soluciones y el plan te dará mililitros en vez de gramos.'}</div></div>` : '';
+    out.innerHTML=`<div class="out">${cuerpo}${avisoFalta}
       <div class="note ${dias>1?'acc':''}" style="margin-top:16px">
         <div class="kicker ${dias>1?'acc':''}">${dias>1?`Repártelo en ${dias} días`:'Cabe en un día'}</div>
         <div class="t">${dias>1
