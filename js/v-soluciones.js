@@ -7,21 +7,28 @@ function renderSoluciones(){
 
   const tarjetas = sols.map(sol=>{
     const k = concentracion(sol), e = efectoPorMl(sol), a = autonomia(sol);
-    const sal = salPorId(sol.saltId), forma = sal?formaDe(sal):null;
+    const esPot = sol.modo==='potencia';
+    const sal = esPot ? null : salPorId(sol.saltId);
+    const forma = sal ? formaDe(sal) : null;
     const pct = sol.volumenMl ? Math.max(0,Math.min(100,(+sol.restanteMl||0)/sol.volumenMl*100)) : 0;
     const alerta = a.dias!=null && a.dias<14;
+    const subtitulo = esPot
+      ? `${fmt(sol.refDelta,3)} ${sol.tipo==='alk'?'dKH':'ppm'} por ${fmt(sol.refMl,1)} ml en ${fmt(sol.refLitros,0)} L`
+      : `${sal?esc(compuestoDe(sal).n):'sal borrada'}${forma?` · ${forma.f}`:''}${sal&&hidratoIncierto(sal)?' · <span class="bad">sin confirmar</span>':''}`;
     return `<div class="solc">
       <div class="row" style="gap:10px">
         <div class="nm">${esc(sol.nombre)}</div><div class="spacer"></div>
         <span class="tipo">${k?TIPO_N[k.tipo].toUpperCase():'—'}</span>
       </div>
-      <div class="sp">${sal?esc(compuestoDe(sal).n):'sal borrada'}${forma?` · ${forma.f}`:''}${hidratoIncierto(sal||{})?' · <span class="bad">sin confirmar</span>':''}</div>
+      <div class="sp">${subtitulo}</div>
       <div class="gr gr-2 box" style="margin-top:14px">
-        <div class="stat sm" style="padding:12px 14px"><div class="v">${sol.gramos} g</div><div class="l">en ${sol.volumenMl} ml</div></div>
+        <div class="stat sm" style="padding:12px 14px">
+          <div class="v">${esPot?fmt(sol.volumenMl,0)+' ml':fmt(sol.gramos,0)+' g'}</div>
+          <div class="l">${esPot?'preparados':'en '+sol.volumenMl+' ml'}</div></div>
         <div class="stat sm" style="padding:12px 14px"><div class="v">${e?fmt(e.delta, e.unidad==='dKH'?4:3):'—'}</div><div class="l">${e?e.unidad+' por ml':'—'}</div></div>
       </div>
       <div class="tiny dim" style="margin-top:10px">
-        Concentración ${k?fmt(k.c,3):'—'} ${k?.tipo==='alk'?'meq/ml':'mg/ml'} · preparada el ${fmtDate(sol.fecha)}
+        ${esPot?'Producto comercial':'Concentración '+(k?fmt(k.c,3):'—')+' '+(k?.tipo==='alk'?'meq/ml':'mg/ml')} · preparada el ${fmtDate(sol.fecha)}
       </div>
       <div class="row" style="margin-top:12px;gap:10px">
         <span class="kicker">Restante</span><span class="spacer"></span>
@@ -105,57 +112,139 @@ function renderSoluciones(){
     </div>`;
 }
 
-/* ═══════════════ alta y edición de solución ═══════════════ */
+/* ═══════════════ productos comerciales conocidos ═══════════════
+   Guardan la potencia declarada por el fabricante para no teclearla.
+   'potencia:null' significa que el dato hay que sacarlo del calculador
+   de la marca; el formulario explica cómo.                              */
+const PRESETS = {
+  rs_alk:{ nombre:'Red Sea · alcalinidad', tipo:'alk', refDelta:0.034, refMl:1, refLitros:100, volumenMl:1000,
+    nota:'Polvo Red Sea disuelto. Dato del fabricante: 1 ml por cada 100 L sube 0.034 dKH.' },
+  rs_ca:{ nombre:'Red Sea · calcio', tipo:'ca', refDelta:2, refMl:1, refLitros:100, volumenMl:1000,
+    nota:'Polvo Red Sea disuelto. Dato del fabricante: 1 ml por cada 100 L sube 2 ppm de calcio.' },
+  brs_mg:{ nombre:'BRS Liquid Magnesium Mix', tipo:'mg', refDelta:null, refMl:null, refLitros:null, volumenMl:3785,
+    receta:'brs_mg',
+    nota:'Premezcla BRS: 7¼ tazas de cloruro de magnesio y ½ taza de sulfato, en 1 galón. Baja en sulfato a propósito, pensada para ajustes grandes.' },
+};
+
 function solucionForm(id){
   const sol = id ? S.solutions.find(s=>s.id===id) : null;
+  const modo = sol?.modo || 'potencia';
   const body = `<form id="fSol">
+    ${!sol?`<div class="field"><label>Producto</label><select name="preset">
+      <option value="">— lo preparo yo con sales a granel —</option>
+      ${Object.entries(PRESETS).map(([k,p])=>`<option value="${k}">${esc(p.nombre)}</option>`).join('')}
+      <option value="__pot">Otro producto comercial</option>
+    </select></div>`:''}
+
     <div class="f2">
       <div class="field"><label>Nombre</label><input type="text" name="nombre" value="${esc(sol?.nombre||'')}" placeholder="Parte A · alcalinidad" required></div>
-      <div class="field"><label>Sal</label><select name="salt">${S.salts.map(s=>{
-        const c=compuestoDe(s);
-        return `<option value="${s.id}" ${sol?.saltId===s.id?'selected':''}>${c.n} · ${TIPO_N[c.tipo]}</option>`;
-      }).join('')}</select></div>
-      <div class="field"><label>Gramos de sal</label><input type="number" step="0.1" name="gramos" value="${sol?.gramos??''}" required></div>
-      <div class="field"><label>Volumen final (ml)</label><input type="number" step="10" name="volumenMl" value="${sol?.volumenMl??5000}" required></div>
-      <div class="field"><label>Fecha de preparación</label><input type="date" name="fecha" value="${sol?.fecha||today()}"></div>
-      <div class="field"><label>Volumen restante (ml)</label><input type="number" step="10" name="restanteMl" value="${sol?.restanteMl??''}" placeholder="igual al volumen final"></div>
+      <div class="field"><label>Cómo está definida</label><select name="modo">
+        <option value="potencia" ${modo==='potencia'?'selected':''}>Por lo que sube cada ml</option>
+        <option value="receta"   ${modo==='receta'?'selected':''}>Por gramos de sal que le puse</option>
+      </select></div>
     </div>
-    <label class="check"><input type="checkbox" name="horneado" ${sol?.horneado?'checked':''}>
-      <span>Voy a hornear el bicarbonato para convertirlo en carbonato de sodio</span></label>
+
+    <div id="camposReceta">
+      <div class="f2">
+        <div class="field"><label>Sal</label><select name="salt">${S.salts.map(s=>{
+          const c=compuestoDe(s);
+          return `<option value="${s.id}" ${sol?.saltId===s.id?'selected':''}>${c.n} · ${TIPO_N[c.tipo]}</option>`;
+        }).join('')}</select></div>
+        <div class="field"><label>Gramos de sal</label><input type="number" step="0.1" name="gramos" value="${sol?.gramos??''}"></div>
+      </div>
+      <label class="check"><input type="checkbox" name="horneado" ${sol?.horneado?'checked':''}>
+        <span>Voy a hornear el bicarbonato para convertirlo en carbonato de sodio</span></label>
+    </div>
+
+    <div id="camposPotencia">
+      <div class="field"><label>Qué corrige</label><select name="tipo">
+        ${Object.entries(TIPO_N).map(([k,n])=>`<option value="${k}" ${sol?.tipo===k?'selected':''}>${n}</option>`).join('')}
+      </select></div>
+      <div class="f3">
+        <div class="field"><label>Sube</label><input type="number" step="0.001" name="refDelta" value="${sol?.refDelta??''}" placeholder="0.034"></div>
+        <div class="field"><label>Con estos ml</label><input type="number" step="0.1" name="refMl" value="${sol?.refMl??''}" placeholder="1"></div>
+        <div class="field"><label>En estos litros</label><input type="number" step="1" name="refLitros" value="${sol?.refLitros??''}" placeholder="100"></div>
+      </div>
+      <div class="note tight"><div class="t dim" id="ayudaPot"></div></div>
+    </div>
+
+    <div class="f3" style="margin-top:16px">
+      <div class="field"><label>Volumen preparado (ml)</label><input type="number" step="10" name="volumenMl" value="${sol?.volumenMl??1000}" required></div>
+      <div class="field"><label>Volumen restante (ml)</label><input type="number" step="10" name="restanteMl" value="${sol?.restanteMl??''}" placeholder="igual al preparado"></div>
+      <div class="field"><label>Fecha de preparación</label><input type="date" name="fecha" value="${sol?.fecha||today()}"></div>
+    </div>
+    <input type="hidden" name="nota" value="${esc(sol?.nota||'')}">
+    <input type="hidden" name="receta" value="${esc(sol?.receta||'')}">
     <div class="note tight" id="solPrev" style="margin-top:16px"></div>
   </form>`;
 
   openModal(sol?'Editar solución':'Nueva solución', body, ()=>{
     const f=new FormData($('#fSol'));
-    const vol=+f.get('volumenMl'), g=+f.get('gramos');
-    if(!(vol>0)||!(g>0)) return toast('Captura gramos y volumen');
-    let saltId=f.get('salt');
-    if(f.get('horneado')){ const s=S.salts.find(x=>x.compuesto==='na2co3'); if(s) saltId=s.id; }
-    const data={nombre:f.get('nombre'), saltId, gramos:g, volumenMl:vol, fecha:f.get('fecha'),
-      restanteMl: f.get('restanteMl')===''? vol : +f.get('restanteMl'), horneado:!!f.get('horneado')};
+    const vol=+f.get('volumenMl');
+    if(!(vol>0)) return toast('Captura el volumen preparado');
+    const m=f.get('modo');
+    const data={nombre:f.get('nombre'), modo:m, volumenMl:vol, fecha:f.get('fecha'),
+      restanteMl: f.get('restanteMl')===''? vol : +f.get('restanteMl'),
+      nota:f.get('nota')||'', receta:f.get('receta')||''};
+    if(m==='potencia'){
+      const d=+f.get('refDelta'), rm=+f.get('refMl'), rl=+f.get('refLitros');
+      if(!(d>0&&rm>0&&rl>0)) return toast('Faltan los tres datos de potencia');
+      Object.assign(data,{tipo:f.get('tipo'), refDelta:d, refMl:rm, refLitros:rl, saltId:null, gramos:null});
+    }else{
+      const g=+f.get('gramos');
+      if(!(g>0)) return toast('Captura los gramos de sal');
+      let saltId=f.get('salt');
+      if(f.get('horneado')){ const s=S.salts.find(x=>x.compuesto==='na2co3'); if(s) saltId=s.id; }
+      Object.assign(data,{saltId, gramos:g, horneado:!!f.get('horneado'), tipo:null,
+                          refDelta:null, refMl:null, refLitros:null});
+    }
     if(sol) Object.assign(sol,data); else S.solutions.push({id:uid(), ...data});
     save(); closeModal(); renderAll(); toast('Solución guardada');
     if(!sol) setTimeout(()=>prepararModal(S.solutions[S.solutions.length-1].id), 80);
   }, 'wide');
 
+  const f=$('#fSol');
+  const aplicarPreset=()=>{
+    const p=PRESETS[f.preset?.value];
+    if(!p) return;
+    f.modo.value='potencia'; f.nombre.value=p.nombre; f.tipo.value=p.tipo;
+    f.refDelta.value=p.refDelta??''; f.refMl.value=p.refMl??''; f.refLitros.value=p.refLitros??'';
+    f.volumenMl.value=p.volumenMl; f.restanteMl.value='';
+    f.nota.value=p.nota||''; f.receta.value=p.receta||'';
+  };
   const upd=()=>{
-    const f=$('#fSol');
-    let salId=f.salt.value;
-    if(f.horneado.checked){ const s=S.salts.find(x=>x.compuesto==='na2co3'); if(s) salId=s.id; }
-    const sal=salPorId(salId);
-    const tmp={saltId:salId, gramos:+f.gramos.value, volumenMl:+f.volumenMl.value};
-    const k=concentracion(tmp), e=efectoPorMl(tmp);
+    const m=f.modo.value;
+    $('#camposReceta').style.display  = m==='receta'   ? '' : 'none';
+    $('#camposPotencia').style.display= m==='potencia' ? '' : 'none';
+
+    $('#ayudaPot').innerHTML = f.preset?.value==='brs_mg'
+      ? `BRS no publica la potencia: sácala de su <b>Reef Calculator</b>. Pon tu magnesio actual, el deseado y tu volumen, elige <i>BRS Liquid Magnesium Mix</i> y te dará unos ml. Captura aquí <b>la diferencia de ppm</b>, <b>esos ml</b> y <b>tu volumen</b>.`
+      : `Es el dato que trae el fabricante, del estilo «1 ml por cada 100 L sube 0.034 dKH». También sirve un resultado de la calculadora de la marca: la diferencia que buscabas, los ml que te dio y el volumen que pusiste.`;
+
     const prev=$('#solPrev');
-    if(!k||!e||!(tmp.gramos>0)){ prev.innerHTML='<div class="t dim">Captura gramos y volumen para ver la concentración.</div>'; return; }
-    const forma=formaDe(sal);
+    let tmp;
+    if(m==='potencia'){
+      tmp={modo:'potencia', tipo:f.tipo.value, refDelta:+f.refDelta.value,
+           refMl:+f.refMl.value, refLitros:+f.refLitros.value, volumenMl:+f.volumenMl.value};
+    }else{
+      let salId=f.salt.value;
+      if(f.horneado.checked){ const s=S.salts.find(x=>x.compuesto==='na2co3'); if(s) salId=s.id; }
+      tmp={modo:'receta', saltId:salId, gramos:+f.gramos.value, volumenMl:+f.volumenMl.value};
+    }
+    const k=concentracion(tmp), e=efectoPorMl(tmp);
+    if(!k||!e){ prev.innerHTML='<div class="t dim">Completa los datos para ver cuánto sube cada ml.</div>'; return; }
+    const sal = k.sal;
     prev.innerHTML=`<div class="t">
-      Concentración <b>${fmt(k.c,3)} ${k.tipo==='alk'?'meq/ml':'mg/ml'}</b> usando ${forma.f}${hidratoIncierto(sal)?' <b class="bad">(asumido anhidro, sin confirmar)</b>':''}.<br>
-      Cada ml sube <b>${fmt(e.delta, e.unidad==='dKH'?4:3)} ${e.unidad}</b> en tus ${V()} L netos. 10 ml suben ${fmt(e.delta*10, e.unidad==='dKH'?3:2)} ${e.unidad}.
-      ${f.horneado.checked?'<br>Con el horneado la receta ya usa las constantes del Na₂CO₃.':''}
+      Cada ml sube <b>${fmt(e.delta, e.unidad==='dKH'?4:3)} ${e.unidad}</b> en tus ${V()} L netos;
+      10 ml suben ${fmt(e.delta*10, e.unidad==='dKH'?3:2)} ${e.unidad}.
+      Con ${fmt(tmp.volumenMl,0)} ml tienes para subir ${fmt(e.delta*tmp.volumenMl, e.unidad==='dKH'?1:0)} ${e.unidad} en total.
+      ${sal?`<br>Concentración ${fmt(k.c,3)} ${k.tipo==='alk'?'meq/ml':'mg/ml'} usando ${formaDe(sal).f}${hidratoIncierto(sal)?' <b class="bad">(asumido anhidro, sin confirmar)</b>':''}.`:''}
+      ${m==='receta'&&f.horneado.checked?'<br>Con el horneado la receta ya usa las constantes del Na₂CO₃.':''}
     </div>`;
   };
-  $('#fSol').addEventListener('input',upd);
-  $('#fSol').addEventListener('change',upd);
+  if(f.preset) f.preset.addEventListener('change', ()=>{ aplicarPreset(); upd(); });
+  f.addEventListener('input',upd);
+  f.addEventListener('change',upd);
   upd();
 }
 
@@ -175,6 +264,7 @@ function rellenarSolucion(id){
 /* ═══════════════ instrucciones de preparación (§7.4) ═══════════════ */
 function prepararModal(id){
   const sol=S.solutions.find(s=>s.id===id); if(!sol) return;
+  if(sol.modo==='potencia') return prepararComercial(sol);
   const sal=salPorId(sol.saltId); if(!sal) return;
   const c=compuestoDe(sal), forma=formaDe(sal);
   const k=concentracion(sol), e=efectoPorMl(sol);
@@ -229,6 +319,65 @@ function prepararModal(id){
     <div class="note" style="margin-top:16px">
       <div class="kicker">Guardado</div>
       <div class="t">Tapada, la solución es estable indefinidamente. Por eso conviene preparar bidones de 5 L en lugar de botellas chicas: haces la receta una vez cada varios meses en vez de cada dos semanas.</div>
+    </div>`;
+  openModal('Preparar · '+sol.nombre, body, null, 'wide');
+}
+
+/* ── preparación de un producto comercial (modo potencia) ── */
+function prepararComercial(sol){
+  const e = efectoPorMl(sol), k = concentracion(sol);
+  const lim = LIM[sol.tipo];
+  const esBRS = sol.receta==='brs_mg';
+
+  const pasos = esBRS ? [
+    `Llena un garrafón de <b>1 galón (3.785 L)</b> hasta <b>la mitad</b> con agua de <b>osmosis inversa (RO/DI)</b> o destilada. Nunca agua de la llave.`,
+    `Vacía dentro <b>todo el contenido del sobre</b>: son 7¼ tazas de cloruro de magnesio y ½ taza de sulfato de magnesio, ya pesadas de fábrica.`,
+    `Tapa y <b>agita unos 10 segundos</b> para arrancar la disolución.`,
+    `Destapa y <b>termina de llenar</b> el garrafón con osmosis hasta el galón completo.`,
+    `Agita otra vez y <b>déjalo reposar hasta que no quede nada de sal sin disolver</b> antes de usarlo. No lo dosifiques turbio.`,
+    `Etiqueta el garrafón: <b>${esc(sol.nombre)} · magnesio · 1 galón · ${fmtDate(sol.fecha)}</b>.`,
+  ] : [
+    `Prepáralo siguiendo las instrucciones del fabricante, siempre con agua de <b>osmosis inversa (RO/DI)</b>.`,
+    `Aforo final: <b>${fmt(sol.volumenMl,0)} ml</b>. El volumen final es el que manda en la concentración.`,
+    `Etiqueta el envase: <b>${esc(sol.nombre)} · ${TIPO_N[sol.tipo]} · ${fmt(sol.volumenMl,0)} ml · ${fmtDate(sol.fecha)}</b>.`,
+  ];
+
+  const body = `
+    <div class="gr gr-2 box">
+      <div class="stat sm"><div class="v">${e?fmt(e.delta, e.unidad==='dKH'?4:3):'—'}</div><div class="l">${e?e.unidad+' por ml':'—'}</div></div>
+      <div class="stat sm"><div class="v">${fmt(sol.volumenMl,0)} ml</div><div class="l">preparados</div></div>
+    </div>
+
+    ${sol.nota?`<div class="note" style="margin-top:20px"><div class="kicker">El producto</div>
+      <div class="t">${esc(sol.nota)}</div></div>`:''}
+
+    ${esBRS?`<div class="note acc" style="margin-top:16px">
+      <div class="kicker acc">Por qué esta mezcla lleva tan poco sulfato</div>
+      <div class="t">BRS la diseñó para <b>ajustes grandes</b>: en una corrección fuerte, meter mucho sulfato desbalancea el agua.
+        Para reposición diaria en dosificación de dos partes se usa justo lo contrario, una mezcla con más sulfato.
+        Por eso su proporción (unas 14 partes de cloruro por 1 de sulfato en volumen) es mucho más baja en sulfato que
+        la mezcla ${fmt(S.settings.mgRatio,1)} : 1 en masa que la app propone para correcciones en seco.</div></div>`:''}
+
+    <div style="margin-top:20px">
+      <div class="h-sub">Paso a paso</div>
+      <ol class="pasos">${pasos.map(p=>`<li>${p}</li>`).join('')}</ol>
+    </div>
+
+    <div class="note" style="margin-top:8px">
+      <div class="kicker">Lo que rinde en tu acuario</div>
+      <div class="t">${e?`De fábrica: <b>${fmt(sol.refDelta,3)} ${e.unidad}</b> por cada ${fmt(sol.refMl,1)} ml en ${fmt(sol.refLitros,0)} L.
+        En tus <b>${V()} L netos</b> eso son <b>${fmt(e.delta, e.unidad==='dKH'?4:3)} ${e.unidad} por ml</b>.
+        Para subir ${lim?`el tope diario de ${lim.rec} ${lim.u}`:'una unidad'} necesitas
+        <b>${lim?fmt(mlPara(sol,lim.rec),0):fmt(mlPara(sol,1),0)} ml</b>.
+        El envase completo da para <b>${fmt(e.delta*sol.volumenMl, e.unidad==='dKH'?1:0)} ${e.unidad}</b>.`
+        :'Faltan los datos de potencia para calcularlo.'}</div>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <div class="kicker">Al dosificar</div>
+      <div class="t">Añádelo <b>poco a poco</b> en zona de alto flujo —la salida de una bomba o un bafle del sump—, nunca de golpe.
+        ${sol.tipo==='mg'?'BRS recomienda no mover el magnesio más de 100 ppm al día; la app usa un tope más conservador de 50 ppm.':''}
+        ${sol.tipo!=='mg'?'Y recuerda no juntarlo en el tiempo con la otra parte.':''}</div>
     </div>`;
   openModal('Preparar · '+sol.nombre, body, null, 'wide');
 }

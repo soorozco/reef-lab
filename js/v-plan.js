@@ -146,6 +146,7 @@ function renderPlan(){
         <b>No juntes la Parte A con la Parte B.</b> Si las echas al mismo tiempo o en el mismo punto precipitan al instante y pierdes las dos.
         Tu horario las separa ${fmt(separacion,0)} h${separacion<1?' — súbelo a 2–4 h en Ajustes':''}. Si no puedes separarlas en el tiempo, échalas en puntos opuestos del sump con la bomba de retorno corriendo.
       </div>`:''}
+      ${notaVolumenes(pl)}
     </div>
 
     ${correcciones.length ? correcciones.map(c=>bloqueCorreccion(c, pl)).join('') : ''}
@@ -183,6 +184,24 @@ function renderPlan(){
 
   const btn = $('#btnRegistrarHoy');
   if(btn) btn.onclick = ()=>registrarDosisHoy(filas);
+}
+
+/* Con productos comerciales las dos partes casi nunca se dosifican en el mismo
+   volumen. Verlo escrito evita que un 16 ml contra 2 ml parezca una errata. */
+function notaVolumenes(pl){
+  const A=pl.mant.A, B=pl.mant.B;
+  if(!A || !B || !(A.ml>0) || !(B.ml>0)) return '';
+  const r = A.ml/B.ml;
+  if(r>0.8 && r<1.25) return '';
+  const mayor = r>1 ? 'alcalinidad' : 'calcio';
+  const razon = r>1 ? r : 1/r;
+  return `<div class="plan-nota">
+    <b>Las dos partes no llevan el mismo volumen, y así debe ser.</b>
+    Te toca <b>${fmt(razon,1)} veces más ${mayor}</b> porque tus dos soluciones no tienen la misma potencia por ml:
+    cada ml de la de alcalinidad sube ${fmt(efectoPorMl(A.sol).delta,4)} dKH y cada ml de la de calcio sube ${fmt(efectoPorMl(B.sol).delta,3)} ppm.
+    Los ml de arriba ya están calculados para que entren acoplados a 1 dKH por cada ${ACOPLE} ppm de calcio, que es la proporción a la que los corales los consumen.
+    Si dosificaras el mismo volumen de las dos, el ${r>1?'calcio se te dispararía':'la alcalinidad se te dispararía'} mientras ${r>1?'la alcalinidad':'el calcio'} se queda atrás.
+  </div>`;
 }
 
 function bloqueCorreccion(c, pl){

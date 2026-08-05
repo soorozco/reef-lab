@@ -34,6 +34,22 @@ const hidratoIncierto = sal => !compuestoDe(sal).fijo && sal.estado==='desconoci
    C_alcalinidad [meq/ml] = (g × meq/g) / ml
    C_ion        [mg/ml]   = (g × mg/g)  / ml                                */
 function concentracion(sol){
+  if(!sol) return null;
+
+  /* Producto comercial: se conoce cuánto sube cada ml, no qué lleva dentro.
+     Se traduce a la misma 'c' que usa el modo receta para que todo lo de
+     abajo (dosis, plan, autonomía) siga funcionando igual.
+       ion : c [mg/ml]  = Δppm × litros / ml
+       alk : c [meq/ml] = ΔdKH × litros / ml × 0.357                        */
+  if(sol.modo==='potencia'){
+    const d=+sol.refDelta||0, m=+sol.refMl||0, L=+sol.refLitros||0;
+    if(!(d>0&&m>0&&L>0)) return null;
+    const porMl = d*L/m;
+    return sol.tipo==='alk'
+      ? { tipo:'alk', sal:null, c:porMl*DKH_MEQ }
+      : { tipo:sol.tipo, sal:null, c:porMl };
+  }
+
   const sal = salPorId(sol.saltId); if(!sal) return null;
   const g = +sol.gramos||0, ml = +sol.volumenMl||0;
   if(!ml) return null;
